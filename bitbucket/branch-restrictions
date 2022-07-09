@@ -1,0 +1,26 @@
+username=
+app_password=
+workspace=
+#Get All repository to a text file
+curl 'https://api.bitbucket.org/2.0/repositories/$workspace?pagelen=100' -u $username:$app_password | jq -r .values[].name > repositories.txt
+# Clear all existing rules
+for repo in $(cat repositories.txt)
+do 
+for rule_id in $(curl https://api.bitbucket.org/2.0/repositories/$workspace/$repo/branch-restrictions  -u $username:$app_password | jq -r .values[].id)
+do
+curl --request DELETE \
+  --url https://api.bitbucket.org/2.0/repositories/$workspace/$repo/branch-restrictions/$rule_id -u $username:$app_password 
+done
+done
+# Add new rules
+for repo in $(cat repositories.txt)
+do 
+# No one can push to main branch
+curl https://api.bitbucket.org/2.0/repositories/$workspace/$repo/branch-restrictions \
+-u $username:$app_password -H "Content-Type: application/json" -X POST \
+-d '{"kind": "push","branch_match_kind": "glob","pattern": "main","groups": []}'
+# Only some people can merge the pull request to main branch
+curl https://api.bitbucket.org/2.0/repositories/$workspace/$repo/branch-restrictions \
+-u $username:$app_password -H "Content-Type: application/json" -X POST \
+-d '{"kind": "restrict_merges","branch_match_kind": "glob","pattern": "main","users": [{"username":"username1"},{"username":"username2"},{"username":"username3"},{"username":"username4"}]}'
+done
